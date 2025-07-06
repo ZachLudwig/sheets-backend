@@ -10,9 +10,14 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
+// Parse and fix private_key newlines in SERVICE_ACCOUNT_JSON
+const rawServiceAccount = process.env.SERVICE_ACCOUNT_JSON;
+const serviceAccount = JSON.parse(rawServiceAccount);
+serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+
 // Google Sheets Auth
 const auth = new google.auth.GoogleAuth({
-  credentials: JSON.parse(process.env.SERVICE_ACCOUNT_JSON),
+  credentials: serviceAccount,
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
@@ -77,4 +82,6 @@ app.post("/export-user-data", async (req, res) => {
 
 // Start server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✅ Okay Zach, Backend running on port ${PORT}`));
+app.listen(PORT, () =>
+  console.log(`✅ Okay Zach, Backend running on port ${PORT}`)
+);
