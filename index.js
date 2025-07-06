@@ -82,6 +82,7 @@ app.post("/export-user-data", async (req, res) => {
 
 // Health check endpoint for uptime monitoring
 app.get("/health", (req, res) => {
+  res.setHeader("Content-Type", "text/plain");
   res.status(200).send("OK");
 });
 
