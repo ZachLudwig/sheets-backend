@@ -12,7 +12,7 @@ app.use(bodyParser.json());
 
 // Google Sheets Auth
 const auth = new google.auth.GoogleAuth({
-  keyFile: process.env.SERVICE_ACCOUNT_KEY_FILE,
+  credentials: JSON.parse(process.env.SERVICE_ACCOUNT_JSON),
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
