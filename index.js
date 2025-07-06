@@ -11,9 +11,10 @@ app.use(cors());
 app.use(bodyParser.json());
 
 // Google Sheets Auth
-const auth = new google.auth.GoogleAuth({
-  credentials: JSON.parse(process.env.SERVICE_ACCOUNT_JSON),
-  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+const auth = new google.auth.JWT({
+  email: process.env.GOOGLE_CLIENT_EMAIL,
+  key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
 
 app.post("/export-user-data", async (req, res) => {
