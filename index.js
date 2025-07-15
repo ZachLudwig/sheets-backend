@@ -18,13 +18,7 @@ const auth = new google.auth.GoogleAuth({
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
-// Column indexes in the sheet (0-based from column B = 1):
-// B=1, C=2, D=3, ..., S=19
-// The 6 columns to auto resize (1-based for readability): 
-// Age (B=1), Gender (C=2), Goal of activity (P=16), Goal Achieved? (Q=17), Why goal was/wasn't met? (R=18), Further comments (S=19)
 const autoResizeCols = [1, 2, 16, 17, 18, 19];
-
-// Columns for wrap text (all except autoResizeCols)
 const wrapTextCols = [];
 for (let i = 1; i <= 19; i++) {
   if (!autoResizeCols.includes(i)) wrapTextCols.push(i);
@@ -59,31 +53,25 @@ app.post("/export-user-data", async (req, res) => {
     const spreadsheetId = process.env.SPREADSHEET_ID;
     const sheetTitle = username;
 
-    // Check if the sheet exists
     const meta = await sheets.spreadsheets.get({ spreadsheetId });
     const sheetData = meta.data.sheets;
     const existingSheet = sheetData.find((s) => s.properties.title === sheetTitle);
     let sheetId;
 
     if (!existingSheet) {
-      // Add new sheet
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
         requestBody: {
           requests: [
-            {
-              addSheet: { properties: { title: sheetTitle } },
-            },
+            { addSheet: { properties: { title: sheetTitle } } },
           ],
         },
       });
 
-      // Get the new sheetId
       const newMeta = await sheets.spreadsheets.get({ spreadsheetId });
       const sheet = newMeta.data.sheets.find((s) => s.properties.title === sheetTitle);
       sheetId = sheet.properties.sheetId;
 
-      // Set header row values
       await sheets.spreadsheets.values.update({
         spreadsheetId,
         range: `${sheetTitle}!B2:S2`,
@@ -112,10 +100,7 @@ app.post("/export-user-data", async (req, res) => {
         },
       });
 
-      // Style header row with green background, bold, borders, Times New Roman font
-      // Also set text wrap on all data rows except for autoResizeCols columns
       const requests = [
-        // Column widths: We'll autoResize specific columns after header set
         {
           updateDimensionProperties: {
             range: {
@@ -128,27 +113,20 @@ app.post("/export-user-data", async (req, res) => {
             fields: "pixelSize",
           },
         },
-        // Header row styling with green background
+        // Header row green background, bold, borders, font
         {
           repeatCell: {
             range: {
               sheetId,
-              startRowIndex: 1, // row 2 header
+              startRowIndex: 1,
               endRowIndex: 2,
               startColumnIndex: 1,
               endColumnIndex: 19,
             },
             cell: {
               userEnteredFormat: {
-                backgroundColor: {
-                  red: 0.85,
-                  green: 1.0,
-                  blue: 0.85,
-                },
-                textFormat: {
-                  bold: true,
-                  fontFamily: "Times New Roman",
-                },
+                backgroundColor: { red: 0.85, green: 1.0, blue: 0.85 },
+                textFormat: { bold: true, fontFamily: "Times New Roman" },
                 borders: {
                   top: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
                   bottom: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
@@ -160,33 +138,48 @@ app.post("/export-user-data", async (req, res) => {
             fields: "userEnteredFormat(backgroundColor,textFormat,borders)",
           },
         },
-        // Text wrap for all data rows and default font for entire sheet
-        {
+        // Header row: wrap text ONLY on columns that require wrapping (wrapTextCols)
+        ...wrapTextCols.map((colIndex) => ({
           repeatCell: {
             range: {
               sheetId,
-              startRowIndex: 2, // row 3 data start
-              endRowIndex: 1000,
-              startColumnIndex: 1,
-              endColumnIndex: 19,
+              startRowIndex: 1,
+              endRowIndex: 2,
+              startColumnIndex: colIndex,
+              endColumnIndex: colIndex + 1,
             },
             cell: {
               userEnteredFormat: {
                 wrapStrategy: "WRAP",
-                textFormat: {
-                  fontFamily: "Times New Roman",
-                },
               },
             },
-            fields: "userEnteredFormat(wrapStrategy,textFormat)",
+            fields: "userEnteredFormat.wrapStrategy",
           },
-        },
-        // Font for entire sheet (in case)
+        })),
+        // Header row: no wrap for autoResizeCols columns
+        ...autoResizeCols.map((colIndex) => ({
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 1,
+              endRowIndex: 2,
+              startColumnIndex: colIndex,
+              endColumnIndex: colIndex + 1,
+            },
+            cell: {
+              userEnteredFormat: {
+                wrapStrategy: "OVERFLOW",
+              },
+            },
+            fields: "userEnteredFormat.wrapStrategy",
+          },
+        })),
+        // Data rows: set default font and wrap on wrapTextCols
         {
           repeatCell: {
             range: {
               sheetId,
-              startRowIndex: 0,
+              startRowIndex: 2,
               endRowIndex: 1000,
               startColumnIndex: 0,
               endColumnIndex: 26,
@@ -198,9 +191,45 @@ app.post("/export-user-data", async (req, res) => {
                 },
               },
             },
-            fields: "userEnteredFormat.textFormat.fontFamily",
+            fields: "userEnteredFormat.textFormat",
           },
         },
+        // Data rows: wrap on wrapTextCols
+        ...wrapTextCols.map((colIndex) => ({
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 2,
+              endRowIndex: 1000,
+              startColumnIndex: colIndex,
+              endColumnIndex: colIndex + 1,
+            },
+            cell: {
+              userEnteredFormat: {
+                wrapStrategy: "WRAP",
+              },
+            },
+            fields: "userEnteredFormat.wrapStrategy",
+          },
+        })),
+        // Data rows: no wrap on autoResizeCols
+        ...autoResizeCols.map((colIndex) => ({
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 2,
+              endRowIndex: 1000,
+              startColumnIndex: colIndex,
+              endColumnIndex: colIndex + 1,
+            },
+            cell: {
+              userEnteredFormat: {
+                wrapStrategy: "OVERFLOW",
+              },
+            },
+            fields: "userEnteredFormat.wrapStrategy",
+          },
+        })),
       ];
 
       await sheets.spreadsheets.batchUpdate({
@@ -208,7 +237,7 @@ app.post("/export-user-data", async (req, res) => {
         requestBody: { requests },
       });
 
-      // Auto resize specific columns for text size
+      // Auto resize specific columns (header and data)
       for (const colIndex of autoResizeCols) {
         await sheets.spreadsheets.batchUpdate({
           spreadsheetId,
@@ -232,7 +261,7 @@ app.post("/export-user-data", async (req, res) => {
       sheetId = existingSheet.properties.sheetId;
     }
 
-    // Append new data row
+    // Append the data row
     const appendResult = await sheets.spreadsheets.values.append({
       spreadsheetId,
       range: `${sheetTitle}!B3:S3`,
@@ -262,62 +291,57 @@ app.post("/export-user-data", async (req, res) => {
       },
     });
 
-    // Get appended row index (zero-based)
+    // Determine the appended row index (0-based)
     const updatedRange = appendResult.data.updates.updatedRange;
     const match = updatedRange.match(/!B(\d+):S(\d+)/);
     let firstRowIndex;
     if (match) {
-      firstRowIndex = parseInt(match[1], 10) - 1;
+      firstRowIndex = parseInt(match[1], 10) - 1; // zero based
     } else {
-      firstRowIndex = 2; // default row 3 zero-based
+      // fallback: just guess
+      firstRowIndex = 2;
     }
+    const lastRowIndex = firstRowIndex;
 
-    // Apply green background + borders + Times New Roman to appended row
-    // Also apply wrap text on columns except autoResizeCols, no wrap on those columns
-    const appendRequests = [
-      {
-        repeatCell: {
-          range: {
-            sheetId,
-            startRowIndex: firstRowIndex,
-            endRowIndex: firstRowIndex + 1,
-            startColumnIndex: 1,
-            endColumnIndex: 19,
-          },
-          cell: {
-            userEnteredFormat: {
-              backgroundColor: {
-                red: 0.85,
-                green: 1.0,
-                blue: 0.85,
-              },
-              borders: {
-                top: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
-                bottom: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
-                left: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
-                right: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
-              },
-              textFormat: {
-                fontFamily: "Times New Roman",
-                bold: false,
-              },
-            },
-          },
-          fields: "userEnteredFormat(backgroundColor,borders,textFormat)",
+    // Apply formatting and borders to appended row
+    const appendRequests = [];
+
+    // Set green background and borders for all columns B to S (1 to 18 zero-based)
+    appendRequests.push({
+      repeatCell: {
+        range: {
+          sheetId,
+          startRowIndex: firstRowIndex,
+          endRowIndex: lastRowIndex + 1,
+          startColumnIndex: 1,
+          endColumnIndex: 19,
         },
+        cell: {
+          userEnteredFormat: {
+            backgroundColor: { red: 0.85, green: 1.0, blue: 0.85 },
+            borders: {
+              top: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
+              bottom: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
+              left: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
+              right: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
+            },
+            textFormat: { fontFamily: "Times New Roman" },
+          },
+        },
+        fields: "userEnteredFormat(backgroundColor,borders,textFormat)",
       },
-    ];
+    });
 
-    // Add wrap/no-wrap per column
-    for (let col of wrapTextCols) {
+    // Wrap on wrapTextCols for appended row
+    for (const colIndex of wrapTextCols) {
       appendRequests.push({
         repeatCell: {
           range: {
             sheetId,
             startRowIndex: firstRowIndex,
-            endRowIndex: firstRowIndex + 1,
-            startColumnIndex: col,
-            endColumnIndex: col + 1,
+            endRowIndex: lastRowIndex + 1,
+            startColumnIndex: colIndex,
+            endColumnIndex: colIndex + 1,
           },
           cell: {
             userEnteredFormat: {
@@ -328,19 +352,21 @@ app.post("/export-user-data", async (req, res) => {
         },
       });
     }
-    for (let col of autoResizeCols) {
+
+    // No wrap on autoResizeCols for appended row
+    for (const colIndex of autoResizeCols) {
       appendRequests.push({
         repeatCell: {
           range: {
             sheetId,
             startRowIndex: firstRowIndex,
-            endRowIndex: firstRowIndex + 1,
-            startColumnIndex: col,
-            endColumnIndex: col + 1,
+            endRowIndex: lastRowIndex + 1,
+            startColumnIndex: colIndex,
+            endColumnIndex: colIndex + 1,
           },
           cell: {
             userEnteredFormat: {
-              wrapStrategy: "OVERFLOW", // No wrap for these columns
+              wrapStrategy: "OVERFLOW",
             },
           },
           fields: "userEnteredFormat.wrapStrategy",
@@ -350,45 +376,17 @@ app.post("/export-user-data", async (req, res) => {
 
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
-      requestBody: {
-        requests: appendRequests,
-      },
+      requestBody: { requests: appendRequests },
     });
 
-    // Auto resize columns for appended data (in case data is bigger than header)
-    for (const colIndex of autoResizeCols) {
-      await sheets.spreadsheets.batchUpdate({
-        spreadsheetId,
-        requestBody: {
-          requests: [
-            {
-              autoResizeDimensions: {
-                dimensions: {
-                  sheetId,
-                  dimension: "COLUMNS",
-                  startIndex: colIndex,
-                  endIndex: colIndex + 1,
-                },
-              },
-            },
-          ],
-        },
-      });
-    }
-
-    res.status(200).json({ message: "Data exported and styled successfully." });
+    res.status(200).json({ message: "User data appended successfully." });
   } catch (error) {
-    console.error("Export failed:", error);
-    res.status(500).json({ error: "Failed to export data." });
+    console.error("Error appending user data:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-app.get("/health", (req, res) => {
-  res.setHeader("Content-Type", "text/plain");
-  res.status(200).send("OK");
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () =>
-  console.log(`✅ Okay Zach, Backend running on port ${PORT}`)
-);
