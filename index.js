@@ -28,11 +28,10 @@ app.post("/export-user-data", async (req, res) => {
     const sheetTitle = username;
 
     const meta = await sheets.spreadsheets.get({ spreadsheetId });
-    const exists = meta.data.sheets.some(
-      (sheet) => sheet.properties.title === sheetTitle
-    );
-
-    let sheetId;
+    const sheetData = meta.data.sheets;
+    const existingSheet = sheetData.find((s) => s.properties.title === sheetTitle);
+    const exists = !!existingSheet;
+    let sheetId = exists ? existingSheet.properties.sheetId : undefined;
 
     if (!exists) {
       await sheets.spreadsheets.batchUpdate({
@@ -48,8 +47,7 @@ app.post("/export-user-data", async (req, res) => {
 
       sheetId = (
         await sheets.spreadsheets.get({ spreadsheetId })
-      ).data.sheets.find((s) => s.properties.title === sheetTitle).properties
-        .sheetId;
+      ).data.sheets.find((s) => s.properties.title === sheetTitle).properties.sheetId;
 
       await sheets.spreadsheets.values.update({
         spreadsheetId,
@@ -72,9 +70,7 @@ app.post("/export-user-data", async (req, res) => {
                   startIndex: 0,
                   endIndex: 1,
                 },
-                properties: {
-                  pixelSize: 50,
-                },
+                properties: { pixelSize: 50 },
                 fields: "pixelSize",
               },
             },
@@ -99,36 +95,6 @@ app.post("/export-user-data", async (req, res) => {
                 fields: "userEnteredFormat.backgroundColor",
               },
             },
-            {
-              repeatCell: {
-                range: {
-                  sheetId,
-                  startRowIndex: 1,
-                  endRowIndex: 2,
-                  startColumnIndex: 1,
-                  endColumnIndex: 5,
-                },
-                cell: {
-                  userEnteredFormat: {
-                    backgroundColor: {
-                      red: 0.8,
-                      green: 1,
-                      blue: 0.8,
-                    },
-                    borders: {
-                      top: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
-                      bottom: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
-                      left: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
-                      right: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
-                    },
-                    textFormat: {
-                      bold: true,
-                    },
-                  },
-                },
-                fields: "userEnteredFormat(backgroundColor,borders,textFormat)",
-              },
-            },
           ],
         },
       });
@@ -144,17 +110,19 @@ app.post("/export-user-data", async (req, res) => {
       },
     });
 
-    const dataRange = await sheets.spreadsheets.values.get({
+    const rangeResp = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: `${sheetTitle}!B3:B`,
+      range: `${sheetTitle}!B2:E`,
     });
-    const rowCount = dataRange.data.values?.length || 0;
-    const rowIndex = 2 + rowCount;
+
+    const numRows = (rangeResp.data.values || []).length;
+    const endRow = 1 + numRows;
 
     sheetId =
       sheetId ||
-      meta.data.sheets.find((s) => s.properties.title === sheetTitle).properties
-        .sheetId;
+      (
+        await sheets.spreadsheets.get({ spreadsheetId })
+      ).data.sheets.find((s) => s.properties.title === sheetTitle).properties.sheetId;
 
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
@@ -164,8 +132,8 @@ app.post("/export-user-data", async (req, res) => {
             repeatCell: {
               range: {
                 sheetId,
-                startRowIndex: rowIndex,
-                endRowIndex: rowIndex + 1,
+                startRowIndex: 1,
+                endRowIndex: endRow,
                 startColumnIndex: 1,
                 endColumnIndex: 5,
               },
@@ -188,11 +156,30 @@ app.post("/export-user-data", async (req, res) => {
             },
           },
           {
+            repeatCell: {
+              range: {
+                sheetId,
+                startRowIndex: 1,
+                endRowIndex: 2,
+                startColumnIndex: 1,
+                endColumnIndex: 5,
+              },
+              cell: {
+                userEnteredFormat: {
+                  textFormat: {
+                    bold: true,
+                  },
+                },
+              },
+              fields: "userEnteredFormat.textFormat",
+            },
+          },
+          {
             updateBorders: {
               range: {
                 sheetId,
                 startRowIndex: 1,
-                endRowIndex: rowIndex + 1,
+                endRowIndex: endRow,
                 startColumnIndex: 1,
                 endColumnIndex: 5,
               },
