@@ -164,7 +164,7 @@ app.post("/export-user-data", async (req, res) => {
             fields: "userEnteredFormat.wrapStrategy",
           },
         })),
-        // No wrap on autoResizeCols for header row
+        // No wrap on autoResizeCols for header row (changed to WRAP)
         ...autoResizeCols.map((colIndex) => ({
           repeatCell: {
             range: {
@@ -174,7 +174,7 @@ app.post("/export-user-data", async (req, res) => {
               startColumnIndex: colIndex,
               endColumnIndex: colIndex + 1,
             },
-            cell: { userEnteredFormat: { wrapStrategy: "OVERFLOW" } },
+            cell: { userEnteredFormat: { wrapStrategy: "WRAP" } },
             fields: "userEnteredFormat.wrapStrategy",
           },
         })),
@@ -210,7 +210,7 @@ app.post("/export-user-data", async (req, res) => {
             fields: "userEnteredFormat.wrapStrategy",
           },
         })),
-        // No wrap on autoResizeCols for data rows
+        // No wrap on autoResizeCols for data rows (changed to WRAP)
         ...autoResizeCols.map((colIndex) => ({
           repeatCell: {
             range: {
@@ -220,7 +220,7 @@ app.post("/export-user-data", async (req, res) => {
               startColumnIndex: colIndex,
               endColumnIndex: colIndex + 1,
             },
-            cell: { userEnteredFormat: { wrapStrategy: "OVERFLOW" } },
+            cell: { userEnteredFormat: { wrapStrategy: "WRAP" } },
             fields: "userEnteredFormat.wrapStrategy",
           },
         })),
@@ -342,7 +342,7 @@ app.post("/export-user-data", async (req, res) => {
           fields: "userEnteredFormat.wrapStrategy",
         },
       })),
-      // No wrap on autoResizeCols
+      // No wrap on autoResizeCols (changed to WRAP)
       ...autoResizeCols.map((colIndex) => ({
         repeatCell: {
           range: {
@@ -352,7 +352,7 @@ app.post("/export-user-data", async (req, res) => {
             startColumnIndex: colIndex,
             endColumnIndex: colIndex + 1,
           },
-          cell: { userEnteredFormat: { wrapStrategy: "OVERFLOW" } },
+          cell: { userEnteredFormat: { wrapStrategy: "WRAP" } },
           fields: "userEnteredFormat.wrapStrategy",
         },
       })),
