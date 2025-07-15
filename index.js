@@ -47,7 +47,6 @@ app.post("/export-user-data", async (req, res) => {
     const spreadsheetId = process.env.SPREADSHEET_ID;
     const sheetTitle = username;
 
-    // Get metadata to check if sheet exists
     const meta = await sheets.spreadsheets.get({ spreadsheetId });
     const sheetData = meta.data.sheets;
     const existingSheet = sheetData.find((s) => s.properties.title === sheetTitle);
@@ -55,7 +54,6 @@ app.post("/export-user-data", async (req, res) => {
     let sheetId = exists ? existingSheet.properties.sheetId : undefined;
 
     if (!exists) {
-      // Create new sheet with username as title
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
         requestBody: {
@@ -67,15 +65,13 @@ app.post("/export-user-data", async (req, res) => {
         },
       });
 
-      // Get new sheetId after creation
       sheetId = (
         await sheets.spreadsheets.get({ spreadsheetId })
       ).data.sheets.find((s) => s.properties.title === sheetTitle).properties.sheetId;
 
-      // Set headers in B2:Q2 with your custom titles
       await sheets.spreadsheets.values.update({
         spreadsheetId,
-        range: `${sheetTitle}!B2:Q2`,
+        range: `${sheetTitle}!B2:S2`,
         valueInputOption: "RAW",
         requestBody: {
           values: [[
@@ -101,7 +97,6 @@ app.post("/export-user-data", async (req, res) => {
         },
       });
 
-      // Format columns width and background for header row
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
         requestBody: {
@@ -111,8 +106,8 @@ app.post("/export-user-data", async (req, res) => {
                 range: {
                   sheetId,
                   dimension: "COLUMNS",
-                  startIndex: 1, // B column
-                  endIndex: 18,  // Q column (B to Q is 17 columns)
+                  startIndex: 1,
+                  endIndex: 19,
                 },
                 properties: { pixelSize: 150 },
                 fields: "pixelSize",
@@ -122,10 +117,10 @@ app.post("/export-user-data", async (req, res) => {
               repeatCell: {
                 range: {
                   sheetId,
-                  startRowIndex: 1,  // Row 2 (0-indexed)
+                  startRowIndex: 1,
                   endRowIndex: 2,
                   startColumnIndex: 1,
-                  endColumnIndex: 18,
+                  endColumnIndex: 19,
                 },
                 cell: {
                   userEnteredFormat: {
@@ -147,7 +142,6 @@ app.post("/export-user-data", async (req, res) => {
               },
             },
             {
-              // Set entire sheet font to Times New Roman
               repeatCell: {
                 range: {
                   sheetId,
@@ -171,10 +165,9 @@ app.post("/export-user-data", async (req, res) => {
       });
     }
 
-    // Append the new row (without username)
     await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: `${sheetTitle}!B3:Q3`,
+      range: `${sheetTitle}!B3:S3`,
       valueInputOption: "RAW",
       insertDataOption: "INSERT_ROWS",
       requestBody: {
@@ -209,7 +202,6 @@ app.post("/export-user-data", async (req, res) => {
 });
 
 app.get("/health", (req, res) => {
-  console.log("💓 Health check ping received");
   res.setHeader("Content-Type", "text/plain");
   res.status(200).send("OK");
 });
