@@ -6,16 +6,13 @@ require("dotenv").config();
 
 const app = express();
 
-// Middleware
 app.use(cors());
 app.use(bodyParser.json());
 
-// Parse and fix private_key newlines in SERVICE_ACCOUNT_JSON
 const rawServiceAccount = process.env.SERVICE_ACCOUNT_JSON;
 const serviceAccount = JSON.parse(rawServiceAccount);
 serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
 
-// Google Sheets Auth
 const auth = new google.auth.GoogleAuth({
   credentials: serviceAccount,
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
@@ -30,13 +27,11 @@ app.post("/export-user-data", async (req, res) => {
     const spreadsheetId = process.env.SPREADSHEET_ID;
     const sheetTitle = username;
 
-    // 1. Check if sheet tab exists
     const meta = await sheets.spreadsheets.get({ spreadsheetId });
     const exists = meta.data.sheets.some(
       (sheet) => sheet.properties.title === sheetTitle
     );
 
-    // 2. Create sheet tab if it doesn't exist
     if (!exists) {
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
@@ -49,27 +44,144 @@ app.post("/export-user-data", async (req, res) => {
         },
       });
 
-      // Add header row to new sheet
+      const sheetId = (
+        await sheets.spreadsheets.get({ spreadsheetId })
+      ).data.sheets.find((s) => s.properties.title === sheetTitle).properties
+        .sheetId;
+
       await sheets.spreadsheets.values.update({
         spreadsheetId,
-        range: `${sheetTitle}!A1`,
+        range: `${sheetTitle}!B2`,
         valueInputOption: "RAW",
         requestBody: {
           values: [["Username", "Email", "Value1", "Value2"]],
         },
       });
 
-      console.log(`Created sheet tab "${sheetTitle}" and added header.`);
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              updateDimensionProperties: {
+                range: {
+                  sheetId,
+                  dimension: "COLUMNS",
+                  startIndex: 0,
+                  endIndex: 1,
+                },
+                properties: {
+                  pixelSize: 50,
+                },
+                fields: "pixelSize",
+              },
+            },
+            {
+              repeatCell: {
+                range: {
+                  sheetId,
+                  startRowIndex: 0,
+                  endRowIndex: 500,
+                  startColumnIndex: 0,
+                  endColumnIndex: 26,
+                },
+                cell: {
+                  userEnteredFormat: {
+                    backgroundColor: {
+                      red: 0.9,
+                      green: 0.9,
+                      blue: 0.9,
+                    },
+                  },
+                },
+                fields: "userEnteredFormat.backgroundColor",
+              },
+            },
+            {
+              repeatCell: {
+                range: {
+                  sheetId,
+                  startRowIndex: 1,
+                  endRowIndex: 2,
+                  startColumnIndex: 1,
+                  endColumnIndex: 5,
+                },
+                cell: {
+                  userEnteredFormat: {
+                    backgroundColor: {
+                      red: 0.8,
+                      green: 1,
+                      blue: 0.8,
+                    },
+                    borders: {
+                      top: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
+                      bottom: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
+                      left: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
+                      right: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
+                    },
+                  },
+                },
+                fields: "userEnteredFormat(backgroundColor,borders)",
+              },
+            },
+          ],
+        },
+      });
     }
 
-    // 3. Append new row to the sheet
     await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: `${sheetTitle}!A1`,
+      range: `${sheetTitle}!B2`,
       valueInputOption: "RAW",
       insertDataOption: "INSERT_ROWS",
       requestBody: {
         values: [[username, email, value1, value2]],
+      },
+    });
+
+    const dataRange = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `${sheetTitle}!B3:B`,
+    });
+    const rowCount = dataRange.data.values?.length || 0;
+    const rowIndex = 2 + rowCount;
+
+    const sheetId = meta.data.sheets.find(
+      (s) => s.properties.title === sheetTitle
+    ).properties.sheetId;
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            repeatCell: {
+              range: {
+                sheetId,
+                startRowIndex: rowIndex,
+                endRowIndex: rowIndex + 1,
+                startColumnIndex: 1,
+                endColumnIndex: 5,
+              },
+              cell: {
+                userEnteredFormat: {
+                  backgroundColor: {
+                    red: 0.8,
+                    green: 1,
+                    blue: 0.8,
+                  },
+                  borders: {
+                    top: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
+                    bottom: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
+                    left: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
+                    right: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
+                  },
+                },
+              },
+              fields: "userEnteredFormat(backgroundColor,borders)",
+            },
+          },
+        ],
       },
     });
 
@@ -80,14 +192,12 @@ app.post("/export-user-data", async (req, res) => {
   }
 });
 
-// Health check endpoint for uptime monitoring
 app.get("/health", (req, res) => {
   console.log("💓 Health check ping received");
   res.setHeader("Content-Type", "text/plain");
   res.status(200).send("OK");
 });
 
-// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () =>
   console.log(`✅ Okay Zach, Backend running on port ${PORT}`)
