@@ -32,6 +32,8 @@ app.post("/export-user-data", async (req, res) => {
       (sheet) => sheet.properties.title === sheetTitle
     );
 
+    let sheetId;
+
     if (!exists) {
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
@@ -44,7 +46,7 @@ app.post("/export-user-data", async (req, res) => {
         },
       });
 
-      const sheetId = (
+      sheetId = (
         await sheets.spreadsheets.get({ spreadsheetId })
       ).data.sheets.find((s) => s.properties.title === sheetTitle).properties
         .sheetId;
@@ -119,9 +121,12 @@ app.post("/export-user-data", async (req, res) => {
                       left: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
                       right: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
                     },
+                    textFormat: {
+                      bold: true,
+                    },
                   },
                 },
-                fields: "userEnteredFormat(backgroundColor,borders)",
+                fields: "userEnteredFormat(backgroundColor,borders,textFormat)",
               },
             },
           ],
@@ -146,9 +151,10 @@ app.post("/export-user-data", async (req, res) => {
     const rowCount = dataRange.data.values?.length || 0;
     const rowIndex = 2 + rowCount;
 
-    const sheetId = meta.data.sheets.find(
-      (s) => s.properties.title === sheetTitle
-    ).properties.sheetId;
+    sheetId =
+      sheetId ||
+      meta.data.sheets.find((s) => s.properties.title === sheetTitle).properties
+        .sheetId;
 
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
@@ -179,6 +185,21 @@ app.post("/export-user-data", async (req, res) => {
                 },
               },
               fields: "userEnteredFormat(backgroundColor,borders)",
+            },
+          },
+          {
+            updateBorders: {
+              range: {
+                sheetId,
+                startRowIndex: 1,
+                endRowIndex: rowIndex + 1,
+                startColumnIndex: 1,
+                endColumnIndex: 5,
+              },
+              top: { style: "SOLID_MEDIUM", color: { red: 0, green: 0, blue: 0 } },
+              bottom: { style: "SOLID_MEDIUM", color: { red: 0, green: 0, blue: 0 } },
+              left: { style: "SOLID_MEDIUM", color: { red: 0, green: 0, blue: 0 } },
+              right: { style: "SOLID_MEDIUM", color: { red: 0, green: 0, blue: 0 } },
             },
           },
         ],
