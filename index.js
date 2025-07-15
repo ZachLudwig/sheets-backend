@@ -144,6 +144,7 @@ app.post("/export-user-data", async (req, res) => {
             fields: "userEnteredFormat(backgroundColor,textFormat,borders)",
           },
         },
+        // Set wrap strategy for wrapped columns
         ...wrapTextCols.map((colIndex) => ({
           repeatCell: {
             range: {
@@ -161,6 +162,7 @@ app.post("/export-user-data", async (req, res) => {
             fields: "userEnteredFormat.wrapStrategy",
           },
         })),
+        // Set wrap strategy for auto resize columns
         ...autoResizeCols.map((colIndex) => ({
           repeatCell: {
             range: {
@@ -197,6 +199,7 @@ app.post("/export-user-data", async (req, res) => {
             fields: "userEnteredFormat.textFormat",
           },
         },
+        // Wrap for rows after header (body)
         ...wrapTextCols.map((colIndex) => ({
           repeatCell: {
             range: {
@@ -214,6 +217,7 @@ app.post("/export-user-data", async (req, res) => {
             fields: "userEnteredFormat.wrapStrategy",
           },
         })),
+        // Wrap for auto resize cols in body
         ...autoResizeCols.map((colIndex) => ({
           repeatCell: {
             range: {
@@ -229,6 +233,19 @@ app.post("/export-user-data", async (req, res) => {
               },
             },
             fields: "userEnteredFormat.wrapStrategy",
+          },
+        })),
+        // Set wrapped columns width explicitly to 180 pixels
+        ...wrapTextCols.map((colIndex) => ({
+          updateDimensionProperties: {
+            range: {
+              sheetId,
+              dimension: "COLUMNS",
+              startIndex: colIndex,
+              endIndex: colIndex + 1,
+            },
+            properties: { pixelSize: 180 },
+            fields: "pixelSize",
           },
         })),
       ];
