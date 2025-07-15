@@ -47,13 +47,14 @@ app.post("/export-user-data", async (req, res) => {
     const spreadsheetId = process.env.SPREADSHEET_ID;
     const sheetTitle = username;
 
+    // Check if the sheet exists
     const meta = await sheets.spreadsheets.get({ spreadsheetId });
     const sheetData = meta.data.sheets;
     const existingSheet = sheetData.find((s) => s.properties.title === sheetTitle);
-    const exists = !!existingSheet;
-    let sheetId = exists ? existingSheet.properties.sheetId : undefined;
+    let sheetId;
 
-    if (!exists) {
+    if (!existingSheet) {
+      // Add new sheet
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
         requestBody: {
@@ -65,10 +66,12 @@ app.post("/export-user-data", async (req, res) => {
         },
       });
 
+      // Get the new sheetId
       const newMeta = await sheets.spreadsheets.get({ spreadsheetId });
       const sheet = newMeta.data.sheets.find((s) => s.properties.title === sheetTitle);
       sheetId = sheet.properties.sheetId;
 
+      // Set header row values
       await sheets.spreadsheets.values.update({
         spreadsheetId,
         range: `${sheetTitle}!B2:S2`,
@@ -97,92 +100,77 @@ app.post("/export-user-data", async (req, res) => {
         },
       });
 
+      // Set column widths and style header row (bold, borders, no bg)
       await sheets.spreadsheets.batchUpdate({
-  spreadsheetId,
-  requestBody: {
-    requests: [
-      {
-        repeatCell: {
-          range: {
-            sheetId,
-            startRowIndex: 1,
-            endRowIndex: 2,
-            startColumnIndex: 1,
-            endColumnIndex: 19,
-          },
-          cell: {
-            userEnteredFormat: {
-              backgroundColor: {
-                red: 0.85,
-                green: 1.0,
-                blue: 0.85,
-              },
-              textFormat: {
-                bold: true,
-                fontFamily: "Times New Roman",
-              },
-              borders: {
-                top: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
-                bottom: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
-                left: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
-                right: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              updateDimensionProperties: {
+                range: {
+                  sheetId,
+                  dimension: "COLUMNS",
+                  startIndex: 1,
+                  endIndex: 19,
+                },
+                properties: { pixelSize: 150 },
+                fields: "pixelSize",
               },
             },
-          },
-          fields: "userEnteredFormat(backgroundColor,textFormat,borders)",
-        },
-      },
-      {
-        repeatCell: {
-          range: {
-            sheetId,
-            startRowIndex: 2,
-            endRowIndex: 3, // Only the newly added row
-            startColumnIndex: 1,
-            endColumnIndex: 19,
-          },
-          cell: {
-            userEnteredFormat: {
-              backgroundColor: {
-                red: 0.85,
-                green: 1.0,
-                blue: 0.85,
-              },
-              borders: {
-                top: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
-                bottom: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
-                left: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
-                right: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
-              },
-            },
-          },
-          fields: "userEnteredFormat(backgroundColor,borders)",
-        },
-      },
-      {
-        repeatCell: {
-          range: {
-            sheetId,
-            startRowIndex: 0,
-            endRowIndex: 3, // Header + 1 row of data
-            startColumnIndex: 1,
-            endColumnIndex: 19,
-          },
-          cell: {
-            userEnteredFormat: {
-              textFormat: {
-                fontFamily: "Times New Roman",
+            {
+              repeatCell: {
+                range: {
+                  sheetId,
+                  startRowIndex: 1,  // row 2 (header)
+                  endRowIndex: 2,
+                  startColumnIndex: 1,
+                  endColumnIndex: 19,
+                },
+                cell: {
+                  userEnteredFormat: {
+                    textFormat: {
+                      bold: true,
+                      fontFamily: "Times New Roman",
+                    },
+                    borders: {
+                      top: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
+                      bottom: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
+                      left: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
+                      right: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
+                    },
+                  },
+                },
+                fields: "userEnteredFormat(textFormat,borders)",
               },
             },
-          },
-          fields: "userEnteredFormat.textFormat.fontFamily",
+            {
+              repeatCell: {
+                range: {
+                  sheetId,
+                  startRowIndex: 0,
+                  endRowIndex: 1000,
+                  startColumnIndex: 0,
+                  endColumnIndex: 26,
+                },
+                cell: {
+                  userEnteredFormat: {
+                    textFormat: {
+                      fontFamily: "Times New Roman",
+                    },
+                  },
+                },
+                fields: "userEnteredFormat.textFormat.fontFamily",
+              },
+            },
+          ],
         },
-      },
-    ],
-  },
-});
+      });
+    } else {
+      sheetId = existingSheet.properties.sheetId;
+    }
 
-    await sheets.spreadsheets.values.append({
+    // Append new data row
+    const appendResult = await sheets.spreadsheets.values.append({
       spreadsheetId,
       range: `${sheetTitle}!B3:S3`,
       valueInputOption: "RAW",
@@ -208,6 +196,57 @@ app.post("/export-user-data", async (req, res) => {
           goalAchievedReason,
           comments,
         ]],
+      },
+    });
+
+    // Get the starting row index of appended data (Google Sheets API returns it as 1-based)
+    const updatedRange = appendResult.data.updates.updatedRange; 
+    // Example updatedRange: "SheetName!B3:S3" or "SheetName!B5:S5"
+    const match = updatedRange.match(/!B(\d+):S(\d+)/);
+    let firstRowIndex;
+    if (match) {
+      firstRowIndex = parseInt(match[1], 10) - 1; // convert to zero-based index for batchUpdate
+    } else {
+      firstRowIndex = 2; // fallback to row 3 zero-based index
+    }
+
+    // Apply green background styling to only the newly appended row
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            repeatCell: {
+              range: {
+                sheetId,
+                startRowIndex: firstRowIndex,
+                endRowIndex: firstRowIndex + 1,
+                startColumnIndex: 1,
+                endColumnIndex: 19,
+              },
+              cell: {
+                userEnteredFormat: {
+                  backgroundColor: {
+                    red: 0.85,
+                    green: 1.0,
+                    blue: 0.85,
+                  },
+                  borders: {
+                    top: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
+                    bottom: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
+                    left: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
+                    right: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
+                  },
+                  textFormat: {
+                    fontFamily: "Times New Roman",
+                    bold: false,
+                  },
+                },
+              },
+              fields: "userEnteredFormat(backgroundColor,borders,textFormat)",
+            },
+          },
+        ],
       },
     });
 
