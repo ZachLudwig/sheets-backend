@@ -98,102 +98,89 @@ app.post("/export-user-data", async (req, res) => {
       });
 
       await sheets.spreadsheets.batchUpdate({
-        spreadsheetId,
-        requestBody: {
-          requests: [
-            {
-              updateDimensionProperties: {
-                range: {
-                  sheetId,
-                  dimension: "COLUMNS",
-                  startIndex: 1,
-                  endIndex: 19,
-                },
-                properties: { pixelSize: 150 },
-                fields: "pixelSize",
+  spreadsheetId,
+  requestBody: {
+    requests: [
+      {
+        repeatCell: {
+          range: {
+            sheetId,
+            startRowIndex: 1,
+            endRowIndex: 2,
+            startColumnIndex: 1,
+            endColumnIndex: 19,
+          },
+          cell: {
+            userEnteredFormat: {
+              backgroundColor: {
+                red: 0.85,
+                green: 1.0,
+                blue: 0.85,
+              },
+              textFormat: {
+                bold: true,
+                fontFamily: "Times New Roman",
+              },
+              borders: {
+                top: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
+                bottom: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
+                left: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
+                right: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
               },
             },
-            {
-              repeatCell: {
-                range: {
-                  sheetId,
-                  startRowIndex: 1,
-                  endRowIndex: 2,
-                  startColumnIndex: 1,
-                  endColumnIndex: 19,
-                },
-                cell: {
-                  userEnteredFormat: {
-                    backgroundColor: {
-                      red: 0.85,
-                      green: 1.0,
-                      blue: 0.85,
-                    },
-                    textFormat: {
-                      bold: true,
-                      fontFamily: "Times New Roman",
-                    },
-                    borders: {
-                      top: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
-                      bottom: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
-                      left: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
-                      right: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
-                    },
-                  },
-                },
-                fields: "userEnteredFormat(backgroundColor,textFormat,borders)",
-              },
-            },
-            {
-              repeatCell: {
-                range: {
-                  sheetId,
-                  startRowIndex: 2,
-                  endRowIndex: 1000,
-                  startColumnIndex: 1,
-                  endColumnIndex: 19,
-                },
-                cell: {
-                  userEnteredFormat: {
-                    backgroundColor: {
-                      red: 0.85,
-                      green: 1.0,
-                      blue: 0.85,
-                    },
-                    borders: {
-                      top: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
-                      bottom: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
-                      left: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
-                      right: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
-                    },
-                  },
-                },
-                fields: "userEnteredFormat(backgroundColor,borders)",
-              },
-            },
-            {
-              repeatCell: {
-                range: {
-                  sheetId,
-                  startRowIndex: 0,
-                  endRowIndex: 1000,
-                  startColumnIndex: 0,
-                  endColumnIndex: 26,
-                },
-                cell: {
-                  userEnteredFormat: {
-                    textFormat: {
-                      fontFamily: "Times New Roman",
-                    },
-                  },
-                },
-                fields: "userEnteredFormat.textFormat.fontFamily",
-              },
-            },
-          ],
+          },
+          fields: "userEnteredFormat(backgroundColor,textFormat,borders)",
         },
-      });
-    }
+      },
+      {
+        repeatCell: {
+          range: {
+            sheetId,
+            startRowIndex: 2,
+            endRowIndex: 3, // Only the newly added row
+            startColumnIndex: 1,
+            endColumnIndex: 19,
+          },
+          cell: {
+            userEnteredFormat: {
+              backgroundColor: {
+                red: 0.85,
+                green: 1.0,
+                blue: 0.85,
+              },
+              borders: {
+                top: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
+                bottom: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
+                left: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
+                right: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
+              },
+            },
+          },
+          fields: "userEnteredFormat(backgroundColor,borders)",
+        },
+      },
+      {
+        repeatCell: {
+          range: {
+            sheetId,
+            startRowIndex: 0,
+            endRowIndex: 3, // Header + 1 row of data
+            startColumnIndex: 1,
+            endColumnIndex: 19,
+          },
+          cell: {
+            userEnteredFormat: {
+              textFormat: {
+                fontFamily: "Times New Roman",
+              },
+            },
+          },
+          fields: "userEnteredFormat.textFormat.fontFamily",
+        },
+      },
+    ],
+  },
+});
 
     await sheets.spreadsheets.values.append({
       spreadsheetId,
