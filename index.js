@@ -20,13 +20,34 @@ const auth = new google.auth.GoogleAuth({
 
 app.post("/export-user-data", async (req, res) => {
   try {
-    const { username, email, value1, value2 } = req.body;
+    const {
+      username,
+      age,
+      gender,
+      preSkill,
+      postSkill,
+      challenged,
+      attentionFocus,
+      enjoyment,
+      control,
+      wantedToAchieve,
+      challengeSkillBalance,
+      goalsDefined,
+      awarePerformance,
+      timeAlter,
+      performedAutomatically,
+      goal,
+      goalAchievedTF,
+      goalAchievedReason,
+      comments,
+    } = req.body;
 
     const client = await auth.getClient();
     const sheets = google.sheets({ version: "v4", auth: client });
     const spreadsheetId = process.env.SPREADSHEET_ID;
     const sheetTitle = username;
 
+    // Get metadata to check if sheet exists
     const meta = await sheets.spreadsheets.get({ spreadsheetId });
     const sheetData = meta.data.sheets;
     const existingSheet = sheetData.find((s) => s.properties.title === sheetTitle);
@@ -34,6 +55,7 @@ app.post("/export-user-data", async (req, res) => {
     let sheetId = exists ? existingSheet.properties.sheetId : undefined;
 
     if (!exists) {
+      // Create new sheet with username as title
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
         requestBody: {
@@ -45,19 +67,41 @@ app.post("/export-user-data", async (req, res) => {
         },
       });
 
+      // Get new sheetId after creation
       sheetId = (
         await sheets.spreadsheets.get({ spreadsheetId })
       ).data.sheets.find((s) => s.properties.title === sheetTitle).properties.sheetId;
 
+      // Set headers in B2:Q2 with your custom titles
       await sheets.spreadsheets.values.update({
         spreadsheetId,
-        range: `${sheetTitle}!B2`,
+        range: `${sheetTitle}!B2:Q2`,
         valueInputOption: "RAW",
         requestBody: {
-          values: [["Username", "Email", "Value1", "Value2"]],
+          values: [[
+            "Age",
+            "Gender",
+            "Skill chosen before activity",
+            "Skill chosen after activity",
+            "I was challenged, but I believed my skills would allow me to meet the challenge.",
+            "My attention was focused entirely on what I was doing.",
+            "I really enjoyed the experience.",
+            "I felt like I could control what I was doing.",
+            "I knew what I wanted to achieve.",
+            "The challenge and my skills were at an equally high level.",
+            "My goals were clearly defined.",
+            "I was aware of how well I was performing.",
+            "Time seemed to alter (either slowed down or sped up).",
+            "I performed automatically.",
+            "Goal of activity",
+            "Goal Achieved?",
+            "Why goal was/wasn't met?",
+            "Further comments"
+          ]],
         },
       });
 
+      // Format columns width and background for header row
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
         requestBody: {
@@ -67,10 +111,10 @@ app.post("/export-user-data", async (req, res) => {
                 range: {
                   sheetId,
                   dimension: "COLUMNS",
-                  startIndex: 0,
-                  endIndex: 1,
+                  startIndex: 1, // B column
+                  endIndex: 18,  // Q column (B to Q is 17 columns)
                 },
-                properties: { pixelSize: 50 },
+                properties: { pixelSize: 150 },
                 fields: "pixelSize",
               },
             },
@@ -78,10 +122,10 @@ app.post("/export-user-data", async (req, res) => {
               repeatCell: {
                 range: {
                   sheetId,
-                  startRowIndex: 0,
-                  endRowIndex: 500,
-                  startColumnIndex: 0,
-                  endColumnIndex: 26,
+                  startRowIndex: 1,  // Row 2 (0-indexed)
+                  endRowIndex: 2,
+                  startColumnIndex: 1,
+                  endColumnIndex: 18,
                 },
                 cell: {
                   userEnteredFormat: {
@@ -90,13 +134,20 @@ app.post("/export-user-data", async (req, res) => {
                       green: 0.9,
                       blue: 0.9,
                     },
+                    textFormat: {
+                      bold: true,
+                      fontFamily: "Times New Roman",
+                    },
+                    borders: {
+                      bottom: { style: "SOLID_MEDIUM", width: 2, color: { red: 0, green: 0, blue: 0 } },
+                    },
                   },
                 },
-                fields: "userEnteredFormat.backgroundColor",
+                fields: "userEnteredFormat(backgroundColor,textFormat,borders.bottom)",
               },
             },
             {
-              // Set entire sheet font to Times New Roman on creation
+              // Set entire sheet font to Times New Roman
               repeatCell: {
                 range: {
                   sheetId,
@@ -120,128 +171,33 @@ app.post("/export-user-data", async (req, res) => {
       });
     }
 
+    // Append the new row (without username)
     await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: `${sheetTitle}!B2`,
+      range: `${sheetTitle}!B3:Q3`,
       valueInputOption: "RAW",
       insertDataOption: "INSERT_ROWS",
       requestBody: {
-        values: [[username, email, value1, value2]],
-      },
-    });
-
-    const rangeResp = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: `${sheetTitle}!B2:E`,
-    });
-
-    const numRows = (rangeResp.data.values || []).length;
-    const endRow = 1 + numRows;
-
-    sheetId =
-      sheetId ||
-      (
-        await sheets.spreadsheets.get({ spreadsheetId })
-      ).data.sheets.find((s) => s.properties.title === sheetTitle).properties.sheetId;
-
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId,
-      requestBody: {
-        requests: [
-          {
-            repeatCell: {
-              range: {
-                sheetId,
-                startRowIndex: 1,
-                endRowIndex: endRow,
-                startColumnIndex: 1,
-                endColumnIndex: 5,
-              },
-              cell: {
-                userEnteredFormat: {
-                  backgroundColor: {
-                    red: 0.8,
-                    green: 1,
-                    blue: 0.8,
-                  },
-                  borders: {
-                    top: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
-                    bottom: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
-                    left: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
-                    right: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
-                  },
-                },
-              },
-              fields: "userEnteredFormat(backgroundColor,borders)",
-            },
-          },
-          {
-            repeatCell: {
-              range: {
-                sheetId,
-                startRowIndex: 1,
-                endRowIndex: 2,
-                startColumnIndex: 1,
-                endColumnIndex: 5,
-              },
-              cell: {
-                userEnteredFormat: {
-                  textFormat: {
-                    bold: true,
-                  },
-                },
-              },
-              fields: "userEnteredFormat.textFormat",
-            },
-          },
-          {
-            updateBorders: {
-              range: {
-                sheetId,
-                startRowIndex: 1,
-                endRowIndex: 2,
-                startColumnIndex: 1,
-                endColumnIndex: 5,
-              },
-              bottom: { style: "SOLID_MEDIUM", color: { red: 0, green: 0, blue: 0 } },
-            },
-          },
-          {
-            updateBorders: {
-              range: {
-                sheetId,
-                startRowIndex: 1,
-                endRowIndex: endRow,
-                startColumnIndex: 1,
-                endColumnIndex: 5,
-              },
-              top: { style: "SOLID_MEDIUM", color: { red: 0, green: 0, blue: 0 } },
-              bottom: { style: "SOLID_MEDIUM", color: { red: 0, green: 0, blue: 0 } },
-              left: { style: "SOLID_MEDIUM", color: { red: 0, green: 0, blue: 0 } },
-              right: { style: "SOLID_MEDIUM", color: { red: 0, green: 0, blue: 0 } },
-            },
-          },
-          {
-            // Set entire sheet font to Times New Roman on every update
-            repeatCell: {
-              range: {
-                sheetId,
-                startRowIndex: 0,
-                endRowIndex: 1000,
-                startColumnIndex: 0,
-                endColumnIndex: 26,
-              },
-              cell: {
-                userEnteredFormat: {
-                  textFormat: {
-                    fontFamily: "Times New Roman",
-                  },
-                },
-              },
-              fields: "userEnteredFormat.textFormat.fontFamily",
-            },
-          },
-        ],
+        values: [[
+          age,
+          gender,
+          preSkill,
+          postSkill,
+          challenged,
+          attentionFocus,
+          enjoyment,
+          control,
+          wantedToAchieve,
+          challengeSkillBalance,
+          goalsDefined,
+          awarePerformance,
+          timeAlter,
+          performedAutomatically,
+          goal,
+          goalAchievedTF,
+          goalAchievedReason,
+          comments,
+        ]],
       },
     });
 
