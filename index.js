@@ -18,9 +18,11 @@ const auth = new google.auth.GoogleAuth({
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
-const autoResizeCols = [1, 2, 16, 17, 18, 19];
+// Columns to auto resize (shifted by +3 since A is blank and data starts at D=3)
+const autoResizeCols = [4, 5, 19, 20, 21, 22];
+// Wrapped columns = all from D(3) to W(22) excluding autoResizeCols
 const wrapTextCols = [];
-for (let i = 1; i <= 19; i++) {
+for (let i = 3; i <= 22; i++) {
   if (!autoResizeCols.includes(i)) wrapTextCols.push(i);
 }
 
@@ -66,12 +68,11 @@ app.post("/export-user-data", async (req, res) => {
     let sheetId;
 
     if (!existingSheet) {
+      // Create new sheet
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
         requestBody: {
-          requests: [
-            { addSheet: { properties: { title: sheetTitle } } },
-          ],
+          requests: [{ addSheet: { properties: { title: sheetTitle } } }],
         },
       });
 
@@ -79,12 +80,15 @@ app.post("/export-user-data", async (req, res) => {
       const sheet = newMeta.data.sheets.find((s) => s.properties.title === sheetTitle);
       sheetId = sheet.properties.sheetId;
 
+      // Set header row in row 2, columns B to W (2 to 22 zero-based indices)
       await sheets.spreadsheets.values.update({
         spreadsheetId,
-        range: `${sheetTitle}!B2:S2`,
+        range: `${sheetTitle}!B2:W2`,
         valueInputOption: "RAW",
         requestBody: {
           values: [[
+            "Date",
+            "Time Recorded",
             "Age",
             "Gender",
             "Skill chosen before activity",
@@ -102,24 +106,26 @@ app.post("/export-user-data", async (req, res) => {
             "Goal of activity",
             "Goal Achieved?",
             "Why goal was/wasn't met?",
-            "Further comments"
+            "Further comments",
           ]],
         },
       });
 
+      // Requests for formatting & resizing
       const requests = [
         {
           updateDimensionProperties: {
             range: {
               sheetId,
               dimension: "COLUMNS",
-              startIndex: 0,
-              endIndex: 26,
+              startIndex: 1, // B column index
+              endIndex: 23, // W is 22 zero-based, endIndex is exclusive so 23
             },
-            properties: { pixelSize: 100 },
+            properties: { pixelSize: 180 },
             fields: "pixelSize",
           },
         },
+        // Header row green background, bold, borders, font for B2:W2
         {
           repeatCell: {
             range: {
@@ -127,7 +133,7 @@ app.post("/export-user-data", async (req, res) => {
               startRowIndex: 1,
               endRowIndex: 2,
               startColumnIndex: 1,
-              endColumnIndex: 19,
+              endColumnIndex: 23,
             },
             cell: {
               userEnteredFormat: {
@@ -144,7 +150,7 @@ app.post("/export-user-data", async (req, res) => {
             fields: "userEnteredFormat(backgroundColor,textFormat,borders)",
           },
         },
-        // Set wrap strategy for wrapped columns
+        // Wrap text for header row on wrapTextCols only
         ...wrapTextCols.map((colIndex) => ({
           repeatCell: {
             range: {
@@ -154,15 +160,11 @@ app.post("/export-user-data", async (req, res) => {
               startColumnIndex: colIndex,
               endColumnIndex: colIndex + 1,
             },
-            cell: {
-              userEnteredFormat: {
-                wrapStrategy: "WRAP",
-              },
-            },
+            cell: { userEnteredFormat: { wrapStrategy: "WRAP" } },
             fields: "userEnteredFormat.wrapStrategy",
           },
         })),
-        // Set wrap strategy for auto resize columns
+        // No wrap on autoResizeCols for header row
         ...autoResizeCols.map((colIndex) => ({
           repeatCell: {
             range: {
@@ -172,34 +174,29 @@ app.post("/export-user-data", async (req, res) => {
               startColumnIndex: colIndex,
               endColumnIndex: colIndex + 1,
             },
-            cell: {
-              userEnteredFormat: {
-                wrapStrategy: "WRAP",
-              },
-            },
+            cell: { userEnteredFormat: { wrapStrategy: "OVERFLOW" } },
             fields: "userEnteredFormat.wrapStrategy",
           },
         })),
+        // Data rows: Times New Roman font on B3:W1000
         {
           repeatCell: {
             range: {
               sheetId,
               startRowIndex: 2,
               endRowIndex: 1000,
-              startColumnIndex: 0,
-              endColumnIndex: 26,
+              startColumnIndex: 1,
+              endColumnIndex: 23,
             },
             cell: {
               userEnteredFormat: {
-                textFormat: {
-                  fontFamily: "Times New Roman",
-                },
+                textFormat: { fontFamily: "Times New Roman" },
               },
             },
             fields: "userEnteredFormat.textFormat",
           },
         },
-        // Wrap for rows after header (body)
+        // Wrap on wrapTextCols for data rows
         ...wrapTextCols.map((colIndex) => ({
           repeatCell: {
             range: {
@@ -209,15 +206,11 @@ app.post("/export-user-data", async (req, res) => {
               startColumnIndex: colIndex,
               endColumnIndex: colIndex + 1,
             },
-            cell: {
-              userEnteredFormat: {
-                wrapStrategy: "WRAP",
-              },
-            },
+            cell: { userEnteredFormat: { wrapStrategy: "WRAP" } },
             fields: "userEnteredFormat.wrapStrategy",
           },
         })),
-        // Wrap for auto resize cols in body
+        // No wrap on autoResizeCols for data rows
         ...autoResizeCols.map((colIndex) => ({
           repeatCell: {
             range: {
@@ -227,25 +220,8 @@ app.post("/export-user-data", async (req, res) => {
               startColumnIndex: colIndex,
               endColumnIndex: colIndex + 1,
             },
-            cell: {
-              userEnteredFormat: {
-                wrapStrategy: "WRAP",
-              },
-            },
+            cell: { userEnteredFormat: { wrapStrategy: "OVERFLOW" } },
             fields: "userEnteredFormat.wrapStrategy",
-          },
-        })),
-        // Set wrapped columns width explicitly to 180 pixels
-        ...wrapTextCols.map((colIndex) => ({
-          updateDimensionProperties: {
-            range: {
-              sheetId,
-              dimension: "COLUMNS",
-              startIndex: colIndex,
-              endIndex: colIndex + 1,
-            },
-            properties: { pixelSize: 180 },
-            fields: "pixelSize",
           },
         })),
       ];
@@ -255,6 +231,7 @@ app.post("/export-user-data", async (req, res) => {
         requestBody: { requests },
       });
 
+      // Auto resize specified columns individually for better fit
       for (const colIndex of autoResizeCols) {
         await sheets.spreadsheets.batchUpdate({
           spreadsheetId,
@@ -278,13 +255,21 @@ app.post("/export-user-data", async (req, res) => {
       sheetId = existingSheet.properties.sheetId;
     }
 
+    // Prepare current date and time strings (e.g. YYYY-MM-DD and HH:mm:ss)
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10);
+    const timeStr = now.toTimeString().slice(0, 8);
+
+    // Append the data row, shifted by 2 columns to start at B (Date) and C (Time)
     const appendResult = await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: `${sheetTitle}!B3:S3`,
+      range: `${sheetTitle}!B3:W3`,
       valueInputOption: "RAW",
       insertDataOption: "INSERT_ROWS",
       requestBody: {
         values: [[
+          dateStr,
+          timeStr,
           age,
           gender,
           preSkill,
@@ -307,45 +292,44 @@ app.post("/export-user-data", async (req, res) => {
       },
     });
 
+    // Determine the appended row index (0-based)
     const updatedRange = appendResult.data.updates.updatedRange;
-    const match = updatedRange.match(/!B(\d+):S(\d+)/);
+    const match = updatedRange.match(/!B(\d+):W(\d+)/);
     let firstRowIndex;
     if (match) {
-      firstRowIndex = parseInt(match[1], 10) - 1;
+      firstRowIndex = parseInt(match[1], 10) - 1; // zero-based
     } else {
-      firstRowIndex = 2;
+      firstRowIndex = 2; // fallback to row 3 zero-based
     }
     const lastRowIndex = firstRowIndex;
 
-    const appendRequests = [];
-
-    appendRequests.push({
-      repeatCell: {
-        range: {
-          sheetId,
-          startRowIndex: firstRowIndex,
-          endRowIndex: lastRowIndex + 1,
-          startColumnIndex: 1,
-          endColumnIndex: 19,
-        },
-        cell: {
-          userEnteredFormat: {
-            backgroundColor: { red: 0.85, green: 1.0, blue: 0.85 },
-            borders: {
-              top: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
-              bottom: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
-              left: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
-              right: { style: "SOLID", width: 1, color: { red: 0, green: 0, blue: 0 } },
-            },
-            textFormat: { fontFamily: "Times New Roman" },
+    // Format appended row with green background, borders, and wrap logic
+    const appendRequests = [
+      {
+        repeatCell: {
+          range: {
+            sheetId,
+            startRowIndex: firstRowIndex,
+            endRowIndex: lastRowIndex + 1,
+            startColumnIndex: 1,
+            endColumnIndex: 23,
           },
+          cell: {
+            userEnteredFormat: {
+              backgroundColor: { red: 0.85, green: 1.0, blue: 0.85 },
+              borders: {
+                top: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
+                bottom: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
+                left: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
+                right: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
+              },
+            },
+          },
+          fields: "userEnteredFormat(backgroundColor,borders)",
         },
-        fields: "userEnteredFormat(backgroundColor,borders,textFormat)",
       },
-    });
-
-    for (const colIndex of wrapTextCols) {
-      appendRequests.push({
+      // Wrap text on wrapTextCols
+      ...wrapTextCols.map((colIndex) => ({
         repeatCell: {
           range: {
             sheetId,
@@ -354,18 +338,12 @@ app.post("/export-user-data", async (req, res) => {
             startColumnIndex: colIndex,
             endColumnIndex: colIndex + 1,
           },
-          cell: {
-            userEnteredFormat: {
-              wrapStrategy: "WRAP",
-            },
-          },
+          cell: { userEnteredFormat: { wrapStrategy: "WRAP" } },
           fields: "userEnteredFormat.wrapStrategy",
         },
-      });
-    }
-
-    for (const colIndex of autoResizeCols) {
-      appendRequests.push({
+      })),
+      // No wrap on autoResizeCols
+      ...autoResizeCols.map((colIndex) => ({
         repeatCell: {
           range: {
             sheetId,
@@ -374,29 +352,25 @@ app.post("/export-user-data", async (req, res) => {
             startColumnIndex: colIndex,
             endColumnIndex: colIndex + 1,
           },
-          cell: {
-            userEnteredFormat: {
-              wrapStrategy: "WRAP",
-            },
-          },
+          cell: { userEnteredFormat: { wrapStrategy: "OVERFLOW" } },
           fields: "userEnteredFormat.wrapStrategy",
         },
-      });
-    }
+      })),
+    ];
 
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
       requestBody: { requests: appendRequests },
     });
 
-    res.status(200).json({ message: "User data appended successfully." });
+    res.status(200).json({ message: "User data exported successfully." });
   } catch (error) {
-    console.error("Error appending user data:", error);
-    res.status(500).json({ error: error.message });
+    console.error("Error exporting user data:", error);
+    res.status(500).json({ error: "Internal server error." });
   }
 });
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
 });
