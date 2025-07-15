@@ -19,11 +19,48 @@ const auth = new google.auth.GoogleAuth({
 });
 
 // Columns to auto resize (shifted by +3 since A is blank and data starts at D=3)
+// Original: [4, 5, 19, 20, 21, 22]
+// Now sheet goes up to Y (24 zero-based), so we keep same columns and add any for extra columns if needed
+// Assuming the two extra columns are at the end: 23 and 24 zero-based (X and Y)
 const autoResizeCols = [4, 5, 19, 20, 21, 22];
-// Wrapped columns = all from D(3) to W(22) excluding autoResizeCols
+
+// Wrap columns = all from D(3) to Y(24) excluding autoResizeCols
 const wrapTextCols = [];
-for (let i = 3; i <= 22; i++) {
+for (let i = 3; i <= 24; i++) {
   if (!autoResizeCols.includes(i)) wrapTextCols.push(i);
+}
+
+// Helper: Convert current time to EST (Eastern Standard Time)
+function getESTDateTime() {
+  // EST is UTC-5 (no daylight saving considered here)
+  // Using Intl API with America/New_York timezone for correct DST handling:
+  const now = new Date();
+
+  const optionsDate = { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' };
+  const optionsTime = { timeZone: 'America/New_York', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' };
+
+  const dateParts = new Intl.DateTimeFormat('en-US', optionsDate).formatToParts(now);
+  const timeParts = new Intl.DateTimeFormat('en-US', optionsTime).formatToParts(now);
+
+  // Build YYYY-MM-DD from parts
+  let year, month, day;
+  for (const part of dateParts) {
+    if (part.type === 'year') year = part.value;
+    if (part.type === 'month') month = part.value;
+    if (part.type === 'day') day = part.value;
+  }
+  const dateStr = `${year}-${month}-${day}`;
+
+  // Build HH:mm:ss from parts
+  let hour, minute, second;
+  for (const part of timeParts) {
+    if (part.type === 'hour') hour = part.value;
+    if (part.type === 'minute') minute = part.value;
+    if (part.type === 'second') second = part.value;
+  }
+  const timeStr = `${hour}:${minute}:${second}`;
+
+  return { dateStr, timeStr };
 }
 
 // Health check endpoint for uptime monitoring
@@ -80,10 +117,10 @@ app.post("/export-user-data", async (req, res) => {
       const sheet = newMeta.data.sheets.find((s) => s.properties.title === sheetTitle);
       sheetId = sheet.properties.sheetId;
 
-      // Set header row in row 2, columns B to W (2 to 22 zero-based indices)
+      // Set header row in row 2, columns B to Y (2 to 24 zero-based indices)
       await sheets.spreadsheets.values.update({
         spreadsheetId,
-        range: `${sheetTitle}!B2:W2`,
+        range: `${sheetTitle}!B2:Y2`,
         valueInputOption: "RAW",
         requestBody: {
           values: [[
@@ -107,6 +144,8 @@ app.post("/export-user-data", async (req, res) => {
             "Goal Achieved?",
             "Why goal was/wasn't met?",
             "Further comments",
+            "", // Extra column 1 (empty header)
+            "", // Extra column 2 (empty header)
           ]],
         },
       });
@@ -119,13 +158,13 @@ app.post("/export-user-data", async (req, res) => {
               sheetId,
               dimension: "COLUMNS",
               startIndex: 1, // B column index
-              endIndex: 23, // W is 22 zero-based, endIndex is exclusive so 23
+              endIndex: 25, // Y is 24 zero-based, endIndex exclusive = 25
             },
             properties: { pixelSize: 180 },
             fields: "pixelSize",
           },
         },
-        // Header row green background, bold, borders, font for B2:W2
+        // Header row green background, bold, borders, font for B2:Y2
         {
           repeatCell: {
             range: {
@@ -133,7 +172,7 @@ app.post("/export-user-data", async (req, res) => {
               startRowIndex: 1,
               endRowIndex: 2,
               startColumnIndex: 1,
-              endColumnIndex: 23,
+              endColumnIndex: 25,
             },
             cell: {
               userEnteredFormat: {
@@ -164,7 +203,7 @@ app.post("/export-user-data", async (req, res) => {
             fields: "userEnteredFormat.wrapStrategy",
           },
         })),
-        // No wrap on autoResizeCols for header row (changed to WRAP)
+        // No wrap on autoResizeCols for header row, but changed to WRAP instead of OVERFLOW as requested
         ...autoResizeCols.map((colIndex) => ({
           repeatCell: {
             range: {
@@ -178,7 +217,7 @@ app.post("/export-user-data", async (req, res) => {
             fields: "userEnteredFormat.wrapStrategy",
           },
         })),
-        // Data rows: Times New Roman font on B3:W1000
+        // Data rows: Times New Roman font on B3:Y1000
         {
           repeatCell: {
             range: {
@@ -186,7 +225,7 @@ app.post("/export-user-data", async (req, res) => {
               startRowIndex: 2,
               endRowIndex: 1000,
               startColumnIndex: 1,
-              endColumnIndex: 23,
+              endColumnIndex: 25,
             },
             cell: {
               userEnteredFormat: {
@@ -255,15 +294,15 @@ app.post("/export-user-data", async (req, res) => {
       sheetId = existingSheet.properties.sheetId;
     }
 
-    // Prepare current date and time strings (e.g. YYYY-MM-DD and HH:mm:ss)
-    const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10);
-    const timeStr = now.toTimeString().slice(0, 8);
+    // Prepare current date and time strings (EST)
+    const { dateStr, timeStr } = getESTDateTime();
 
     // Append the data row, shifted by 2 columns to start at B (Date) and C (Time)
+    // Columns now B to Y (1 to 24 zero-based), so values array length should match (20 fields + 2 extra columns = 22 columns total?)
+    // You had 20 fields; with 2 extra columns, send 22 values (empty strings for those extras)
     const appendResult = await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: `${sheetTitle}!B3:W3`,
+      range: `${sheetTitle}!B3:Y3`,
       valueInputOption: "RAW",
       insertDataOption: "INSERT_ROWS",
       requestBody: {
@@ -288,13 +327,15 @@ app.post("/export-user-data", async (req, res) => {
           goalAchievedTF,
           goalAchievedReason,
           comments,
+          "", // Extra column 1
+          "", // Extra column 2
         ]],
       },
     });
 
     // Determine the appended row index (0-based)
     const updatedRange = appendResult.data.updates.updatedRange;
-    const match = updatedRange.match(/!B(\d+):W(\d+)/);
+    const match = updatedRange.match(/!B(\d+):Y(\d+)/);
     let firstRowIndex;
     if (match) {
       firstRowIndex = parseInt(match[1], 10) - 1; // zero-based
@@ -312,7 +353,7 @@ app.post("/export-user-data", async (req, res) => {
             startRowIndex: firstRowIndex,
             endRowIndex: lastRowIndex + 1,
             startColumnIndex: 1,
-            endColumnIndex: 23,
+            endColumnIndex: 25,
           },
           cell: {
             userEnteredFormat: {
