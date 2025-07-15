@@ -24,6 +24,13 @@ for (let i = 1; i <= 19; i++) {
   if (!autoResizeCols.includes(i)) wrapTextCols.push(i);
 }
 
+// Health check endpoint for uptime monitoring
+app.get("/health", (req, res) => {
+  console.log("💓 Health check ping received");
+  res.setHeader("Content-Type", "text/plain");
+  res.status(200).send("OK");
+});
+
 app.post("/export-user-data", async (req, res) => {
   try {
     const {
@@ -113,7 +120,6 @@ app.post("/export-user-data", async (req, res) => {
             fields: "pixelSize",
           },
         },
-        // Header row green background, bold, borders, font
         {
           repeatCell: {
             range: {
@@ -138,7 +144,6 @@ app.post("/export-user-data", async (req, res) => {
             fields: "userEnteredFormat(backgroundColor,textFormat,borders)",
           },
         },
-        // Header row: wrap text ONLY on columns that require wrapping (wrapTextCols)
         ...wrapTextCols.map((colIndex) => ({
           repeatCell: {
             range: {
@@ -156,7 +161,6 @@ app.post("/export-user-data", async (req, res) => {
             fields: "userEnteredFormat.wrapStrategy",
           },
         })),
-        // Header row: no wrap for autoResizeCols columns
         ...autoResizeCols.map((colIndex) => ({
           repeatCell: {
             range: {
@@ -168,13 +172,12 @@ app.post("/export-user-data", async (req, res) => {
             },
             cell: {
               userEnteredFormat: {
-                wrapStrategy: "OVERFLOW",
+                wrapStrategy: "WRAP",
               },
             },
             fields: "userEnteredFormat.wrapStrategy",
           },
         })),
-        // Data rows: set default font and wrap on wrapTextCols
         {
           repeatCell: {
             range: {
@@ -194,7 +197,6 @@ app.post("/export-user-data", async (req, res) => {
             fields: "userEnteredFormat.textFormat",
           },
         },
-        // Data rows: wrap on wrapTextCols
         ...wrapTextCols.map((colIndex) => ({
           repeatCell: {
             range: {
@@ -212,7 +214,6 @@ app.post("/export-user-data", async (req, res) => {
             fields: "userEnteredFormat.wrapStrategy",
           },
         })),
-        // Data rows: no wrap on autoResizeCols
         ...autoResizeCols.map((colIndex) => ({
           repeatCell: {
             range: {
@@ -224,7 +225,7 @@ app.post("/export-user-data", async (req, res) => {
             },
             cell: {
               userEnteredFormat: {
-                wrapStrategy: "OVERFLOW",
+                wrapStrategy: "WRAP",
               },
             },
             fields: "userEnteredFormat.wrapStrategy",
@@ -237,7 +238,6 @@ app.post("/export-user-data", async (req, res) => {
         requestBody: { requests },
       });
 
-      // Auto resize specific columns (header and data)
       for (const colIndex of autoResizeCols) {
         await sheets.spreadsheets.batchUpdate({
           spreadsheetId,
@@ -261,7 +261,6 @@ app.post("/export-user-data", async (req, res) => {
       sheetId = existingSheet.properties.sheetId;
     }
 
-    // Append the data row
     const appendResult = await sheets.spreadsheets.values.append({
       spreadsheetId,
       range: `${sheetTitle}!B3:S3`,
@@ -291,22 +290,18 @@ app.post("/export-user-data", async (req, res) => {
       },
     });
 
-    // Determine the appended row index (0-based)
     const updatedRange = appendResult.data.updates.updatedRange;
     const match = updatedRange.match(/!B(\d+):S(\d+)/);
     let firstRowIndex;
     if (match) {
-      firstRowIndex = parseInt(match[1], 10) - 1; // zero based
+      firstRowIndex = parseInt(match[1], 10) - 1;
     } else {
-      // fallback: just guess
       firstRowIndex = 2;
     }
     const lastRowIndex = firstRowIndex;
 
-    // Apply formatting and borders to appended row
     const appendRequests = [];
 
-    // Set green background and borders for all columns B to S (1 to 18 zero-based)
     appendRequests.push({
       repeatCell: {
         range: {
@@ -332,7 +327,6 @@ app.post("/export-user-data", async (req, res) => {
       },
     });
 
-    // Wrap on wrapTextCols for appended row
     for (const colIndex of wrapTextCols) {
       appendRequests.push({
         repeatCell: {
@@ -353,7 +347,6 @@ app.post("/export-user-data", async (req, res) => {
       });
     }
 
-    // No wrap on autoResizeCols for appended row
     for (const colIndex of autoResizeCols) {
       appendRequests.push({
         repeatCell: {
@@ -366,7 +359,7 @@ app.post("/export-user-data", async (req, res) => {
           },
           cell: {
             userEnteredFormat: {
-              wrapStrategy: "OVERFLOW",
+              wrapStrategy: "WRAP",
             },
           },
           fields: "userEnteredFormat.wrapStrategy",
