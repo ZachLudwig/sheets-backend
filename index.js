@@ -65,9 +65,9 @@ app.post("/export-user-data", async (req, res) => {
         },
       });
 
-      sheetId = (
-        await sheets.spreadsheets.get({ spreadsheetId })
-      ).data.sheets.find((s) => s.properties.title === sheetTitle).properties.sheetId;
+      const newMeta = await sheets.spreadsheets.get({ spreadsheetId });
+      const sheet = newMeta.data.sheets.find((s) => s.properties.title === sheetTitle);
+      sheetId = sheet.properties.sheetId;
 
       await sheets.spreadsheets.values.update({
         spreadsheetId,
@@ -125,20 +125,50 @@ app.post("/export-user-data", async (req, res) => {
                 cell: {
                   userEnteredFormat: {
                     backgroundColor: {
-                      red: 0.9,
-                      green: 0.9,
-                      blue: 0.9,
+                      red: 0.85,
+                      green: 1.0,
+                      blue: 0.85,
                     },
                     textFormat: {
                       bold: true,
                       fontFamily: "Times New Roman",
                     },
                     borders: {
-                      bottom: { style: "SOLID_MEDIUM", width: 2, color: { red: 0, green: 0, blue: 0 } },
+                      top: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
+                      bottom: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
+                      left: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
+                      right: { style: "SOLID", width: 2, color: { red: 0, green: 0, blue: 0 } },
                     },
                   },
                 },
-                fields: "userEnteredFormat(backgroundColor,textFormat,borders.bottom)",
+                fields: "userEnteredFormat(backgroundColor,textFormat,borders)",
+              },
+            },
+            {
+              repeatCell: {
+                range: {
+                  sheetId,
+                  startRowIndex: 2,
+                  endRowIndex: 1000,
+                  startColumnIndex: 1,
+                  endColumnIndex: 19,
+                },
+                cell: {
+                  userEnteredFormat: {
+                    backgroundColor: {
+                      red: 0.85,
+                      green: 1.0,
+                      blue: 0.85,
+                    },
+                    borders: {
+                      top: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
+                      bottom: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
+                      left: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
+                      right: { style: "SOLID", color: { red: 0, green: 0, blue: 0 } },
+                    },
+                  },
+                },
+                fields: "userEnteredFormat(backgroundColor,borders)",
               },
             },
             {
@@ -194,7 +224,7 @@ app.post("/export-user-data", async (req, res) => {
       },
     });
 
-    res.status(200).json({ message: "Data exported successfully." });
+    res.status(200).json({ message: "Data exported and styled successfully." });
   } catch (error) {
     console.error("Export failed:", error);
     res.status(500).json({ error: "Failed to export data." });
