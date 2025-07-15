@@ -95,6 +95,26 @@ app.post("/export-user-data", async (req, res) => {
                 fields: "userEnteredFormat.backgroundColor",
               },
             },
+            {
+              // Set entire sheet font to Times New Roman on creation
+              repeatCell: {
+                range: {
+                  sheetId,
+                  startRowIndex: 0,
+                  endRowIndex: 1000,
+                  startColumnIndex: 0,
+                  endColumnIndex: 26,
+                },
+                cell: {
+                  userEnteredFormat: {
+                    textFormat: {
+                      fontFamily: "Times New Roman",
+                    },
+                  },
+                },
+                fields: "userEnteredFormat.textFormat.fontFamily",
+              },
+            },
           ],
         },
       });
@@ -179,6 +199,18 @@ app.post("/export-user-data", async (req, res) => {
               range: {
                 sheetId,
                 startRowIndex: 1,
+                endRowIndex: 2,
+                startColumnIndex: 1,
+                endColumnIndex: 5,
+              },
+              bottom: { style: "SOLID_MEDIUM", color: { red: 0, green: 0, blue: 0 } },
+            },
+          },
+          {
+            updateBorders: {
+              range: {
+                sheetId,
+                startRowIndex: 1,
                 endRowIndex: endRow,
                 startColumnIndex: 1,
                 endColumnIndex: 5,
@@ -187,6 +219,26 @@ app.post("/export-user-data", async (req, res) => {
               bottom: { style: "SOLID_MEDIUM", color: { red: 0, green: 0, blue: 0 } },
               left: { style: "SOLID_MEDIUM", color: { red: 0, green: 0, blue: 0 } },
               right: { style: "SOLID_MEDIUM", color: { red: 0, green: 0, blue: 0 } },
+            },
+          },
+          {
+            // Set entire sheet font to Times New Roman on every update
+            repeatCell: {
+              range: {
+                sheetId,
+                startRowIndex: 0,
+                endRowIndex: 1000,
+                startColumnIndex: 0,
+                endColumnIndex: 26,
+              },
+              cell: {
+                userEnteredFormat: {
+                  textFormat: {
+                    fontFamily: "Times New Roman",
+                  },
+                },
+              },
+              fields: "userEnteredFormat.textFormat.fontFamily",
             },
           },
         ],
